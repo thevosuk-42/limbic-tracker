@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#f6f6f4}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Cedarbridge Implementation Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#F3F6F5; --panel:#FFFFFF; --ink:#16232A; --ink-2:#48585F; --muted:#76878D; --line:#DAE2E1; --line-2:#ECF1F0;
+  --accent:#0F6E66; --accent-ink:#FFFFFF; --accent-soft:#DEEFEC;
+  --good:#2A7A4B; --good-soft:#E1F1E7; --warn:#8F5E00; --warn-soft:#FAEFD6;
+  --serious:#AE4F16; --serious-soft:#FAE5D7; --crit:#B42318; --crit-soft:#FADFDC;
+  --internal:#5A3E9E; --internal-soft:#ECE6F7;
+  --shadow:0 1px 2px rgba(22,35,42,.06),0 4px 14px rgba(22,35,42,.05);
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0E1618; --panel:#152024; --ink:#E4ECEC; --ink-2:#AABBBE; --muted:#7F9398; --line:#26363A; --line-2:#1B292C;
+    --accent:#52B7AB; --accent-ink:#0E1618; --accent-soft:#16332F;
+    --good:#5DBE8A; --good-soft:#163024; --warn:#DDAA45; --warn-soft:#342914;
+    --serious:#EC8A55; --serious-soft:#382215; --crit:#F07A70; --crit-soft:#3B1C1A;
+    --internal:#B7A0F0; --internal-soft:#282140;
+    --shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0E1618; --panel:#152024; --ink:#E4ECEC; --ink-2:#AABBBE; --muted:#7F9398; --line:#26363A; --line-2:#1B292C;
+  --accent:#52B7AB; --accent-ink:#0E1618; --accent-soft:#16332F;
+  --good:#5DBE8A; --good-soft:#163024; --warn:#DDAA45; --warn-soft:#342914;
+  --serious:#EC8A55; --serious-soft:#382215; --crit:#F07A70; --crit-soft:#3B1C1A;
+  --internal:#B7A0F0; --internal-soft:#282140;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;padding-inline:20px;padding-block:0 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600}
+h1{font-size:24px;letter-spacing:-.01em}
+h2{font-size:16px}
+h3{font-size:14px}
+p{margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.ink2{color:var(--ink-2)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* top bar */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-block:14px 12px;border-bottom:1px solid var(--line);margin-inline:-20px;padding-inline:20px}
+.topbar-in{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:28px;height:28px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.brand-t{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.brand-t b{font-size:14px}
+.brand-t span{font-size:12px;color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:2px;background:var(--panel)}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-size:13px;color:var(--ink-2);font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg.view button[data-v="internal"][aria-pressed="true"]{background:var(--internal);color:var(--panel)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.ghost{background:none}
+
+.banner{border-radius:10px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:flex-start}
+.banner.internal{background:var(--internal-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--internal) 35%,transparent)}
+.banner.internal b{color:var(--internal)}
+.banner.note{background:var(--panel);border:1px dashed var(--line);color:var(--ink-2)}
+.toast{font-size:13px;padding:8px 12px;border-radius:8px}
+.sel-wrap{display:inline-flex;align-items:center;gap:6px}
+.live{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);padding:4px 10px;border-radius:999px;background:var(--good-soft)}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
+.live.loading .dot{background:var(--warn);animation:pulse 1s infinite}
+.live.error{background:var(--crit-soft)} .live.error .dot{background:var(--crit)}
+.live button{border:0;background:none;color:var(--accent);font-weight:600;font-size:12px;padding:0;text-decoration:underline}
+@keyframes pulse{50%{opacity:.3}}
+.sel-wrap select{padding:6px 28px 6px 10px;appearance:auto;max-width:220px}
+.modal-bg{position:fixed;inset:0;background:rgba(10,20,24,.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto}
+.modal{background:var(--panel);color:var(--ink);border-radius:14px;max-width:760px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;max-height:calc(100vh - 48px)}
+.modal-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal-h h2{font-size:15px}
+.modal-b{padding:0;overflow:auto}
+.modal textarea{width:100%;min-height:380px;border:0;resize:vertical;padding:16px 18px;font-family:var(--mono);font-size:12.5px;line-height:1.55;background:var(--panel);color:var(--ink);display:block}
+.modal-f{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.portfolio{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;text-align:left;cursor:pointer;box-shadow:var(--shadow)}
+.pcard:hover{border-color:var(--accent)}
+.pcard.current{outline:2px solid var(--accent);outline-offset:-1px}
+.pcard .pn{font-weight:600;font-size:14px}
+.pcard .pm{font-size:12px;color:var(--muted)}
+.pcard .pr{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pcard .steps{grid-template-columns:repeat(8,1fr);gap:3px}
+.pcard .step .bar{height:4px}
+.toast.ok{background:var(--good-soft);color:var(--ink)}
+.toast.err{background:var(--crit-soft);color:var(--ink)}
+
+/* header summary */
+.hero{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);min-width:0}
+.hero-main{display:flex;flex-direction:column;gap:12px}
+.status-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.nodot::before{display:none}
+.t-good{background:var(--good-soft);color:var(--good)}
+.t-warn{background:var(--warn-soft);color:var(--warn)}
+.t-serious{background:var(--serious-soft);color:var(--serious)}
+.t-crit{background:var(--crit-soft);color:var(--crit)}
+.t-neutral{background:var(--line-2);color:var(--ink-2)}
+.t-accent{background:var(--accent-soft);color:var(--accent)}
+.t-internal{background:var(--internal-soft);color:var(--internal)}
+.big-status{font-size:13px;padding:4px 12px}
+.summary{font-size:15px;line-height:1.6;max-width:68ch}
+.sub-summary{font-size:13px;color:var(--ink-2);border-left:2px solid var(--line);padding-left:10px;max-width:68ch}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px}
+.fact .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.fact .v small{font-size:13px;font-weight:500;color:var(--ink-2)}
+.fact .d{font-size:12px;color:var(--muted)}
+.slip{color:var(--crit)}
+.asks{margin-top:4px;padding-top:14px;border-top:1px solid var(--line-2);display:flex;flex-direction:column;gap:6px}
+.asks p{font-size:13px}
+
+/* stepper */
+.steps{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.step{display:flex;flex-direction:column;gap:6px;min-width:0}
+.step .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.step .bar i{display:block;height:100%;background:var(--accent)}
+.step.complete .bar i{background:var(--good)}
+.step .nm{font-size:12px;font-weight:600;line-height:1.25}
+.step .st{font-size:11px;color:var(--muted)}
+.step.active .nm{color:var(--accent)}
+.step .sl{font-size:11px;font-weight:600;color:var(--crit)}
+
+/* tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{border:0;background:none;padding:10px 14px;font-size:14px;font-weight:500;color:var(--ink-2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.count{font-size:11px;background:var(--line-2);color:var(--ink-2);border-radius:999px;padding:0 7px;font-variant-numeric:tabular-nums}
+
+.sec-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:12px}
+.sec-h p{font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+
+/* timeline */
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:18px;height:8px;border-radius:2px;display:inline-block}
+.sw.target{background:var(--line-2);border:1px solid var(--muted)}
+.sw.actual{background:var(--accent)}
+.sw.fc{background:repeating-linear-gradient(135deg,var(--accent) 0 2px,var(--accent-soft) 2px 5px)}
+.sw.asof{width:0;height:12px;border-left:2px dashed var(--ink-2);border-radius:0}
+.tl-scroll{overflow-x:auto;position:relative}
+#timeline{display:block}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;padding:8px 10px;border-radius:8px;z-index:50;max-width:260px;line-height:1.45;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+.tip b{display:block;margin-bottom:2px}
+.tip .r{display:flex;justify-content:space-between;gap:14px;font-variant-numeric:tabular-nums}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
+td{padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.done td{color:var(--muted)}
+tr.done td .title{text-decoration:none}
+tr.overdue td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
+tr.internal-row{background:color-mix(in srgb,var(--internal-soft) 55%,transparent)}
+.title{font-weight:500;color:var(--ink)}
+tr.done .title{color:var(--muted);font-weight:400}
+.dep{font-size:12px;color:var(--muted);margin-top:2px}
+.owner{white-space:nowrap}
+.org{font-size:11px;color:var(--muted);display:block}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.flabel{font-size:12px;color:var(--muted)}
+
+/* attention list */
+.att{display:flex;flex-direction:column}
+.att-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.att-row:last-child{border-bottom:0}
+.att-row .mono{font-size:12px;color:var(--muted);padding-top:1px}
+.att-row .m{font-size:12px;color:var(--muted)}
+
+/* risks */
+.risks{display:flex;flex-direction:column;gap:12px}
+.risk{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px 14px 18px;position:relative;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px 24px;overflow:hidden}
+.risk::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--sev)}
+.risk.sev-Critical{--sev:var(--crit)} .risk.sev-High{--sev:var(--serious)} .risk.sev-Medium{--sev:var(--warn)} .risk.sev-Low{--sev:var(--muted)}
+.risk-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;grid-column:1/-1}
+.risk-h h3{font-size:15px}
+.risk-body{display:flex;flex-direction:column;gap:10px}
+.wording{font-size:13px;line-height:1.55}
+.wording .lbl{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:2px}
+.wording.int .lbl{color:var(--internal)}
+.wording.cust .lbl{color:var(--accent)}
+.wording.cust.sub{padding:8px 10px;border-radius:8px;background:var(--line-2)}
+.wording.missing{color:var(--crit);font-weight:500}
+.risk-meta{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.risk-meta .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+
+/* decisions */
+.dec{display:flex;flex-direction:column}
+.dec-row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:16px;padding:14px 0;border-bottom:1px solid var(--line-2)}
+.dec-row:last-child{border-bottom:0}
+.dec-date{font-family:var(--mono);font-size:12px;color:var(--ink-2);padding-top:2px}
+.dec-date span{display:block;color:var(--muted)}
+.dec-row .what{font-weight:500}
+.dec-row .why{font-size:13px;color:var(--ink-2);margin-top:4px}
+.dec-row .by{font-size:12px;color:var(--muted);margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* gates */
+.gates{display:flex;flex-direction:column}
+.gate{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;padding:12px 0;border-bottom:1px solid var(--line-2);align-items:start}
+.gate:last-child{border-bottom:0}
+.box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--muted);margin-top:2px;display:grid;place-items:center;font-size:12px}
+.box.met{background:var(--good);border-color:var(--good);color:var(--panel)}
+.gate .ev{font-size:12px;color:var(--muted)}
+
+/* playbook */
+.play{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.play .panel h3{margin-bottom:6px}
+.play .panel p{font-size:13px;color:var(--ink-2)}
+.play .n{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500;margin-bottom:4px}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.rule{border-top:2px solid var(--ink);padding-top:10px}
+.rule p{font-size:13px;color:var(--ink-2)}
+.schema td:first-child{font-weight:600;white-space:nowrap}
+.schema td{font-size:13px}
+.checks{display:flex;flex-direction:column;gap:6px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+pre.json{margin:0;max-height:360px;overflow:auto;font-family:var(--mono);font-size:12px;background:var(--line-2);border-radius:10px;padding:12px;color:var(--ink-2)}
+.foot{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid var(--line)}
+
+@media (max-width:900px){
+  .hero,.grid2{grid-template-columns:1fr}
+  .steps{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:14px}
+  .play,.rules{grid-template-columns:1fr 1fr}
+  .risk{grid-template-columns:1fr}
+}
+@media (max-width:560px){
+  body{padding-inline:16px}
+  .topbar{margin-inline:-16px;padding-inline:16px}
+  .steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .play,.rules{grid-template-columns:1fr}
+  .facts{grid-template-columns:1fr 1fr}
+  .dec-row{grid-template-columns:1fr;gap:4px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">L</div>
+      <div class="brand-t"><b id="b-partner">Implementation</b><span id="b-program">Limbic implementation tracker</span></div>
+    </div>
+    <div class="controls">
+      <div class="seg view" role="group" aria-label="Audience view">
+        <button type="button" data-v="customer" id="v-customer">Customer view</button>
+        <button type="button" data-v="internal" id="v-internal">Internal view</button>
+      </div>
+      <label class="sel-wrap" for="partner-sel"><span class="flabel">Partner</span><select id="partner-sel" class="btn"></select></label>
+      <label class="btn" for="file-in" title="Load any workbook built from the Limbic template">Load workbook
+        <input type="file" id="file-in" accept=".xlsx,.json" hidden>
+      </label>
+      <button type="button" class="btn" id="update-btn">Generate update</button>
+      <span id="live-badge" class="live" hidden></span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" style="padding-top:20px">
+  <div id="toast" hidden></div>
+  <div id="banner"></div>
+
+  <section class="hero">
+    <div class="panel hero-main">
+      <div class="status-row" id="status-row"></div>
+      <h1 id="h-title"></h1>
+      <p class="summary" id="summary"></p>
+      <p class="sub-summary" id="sub-summary" hidden></p>
+    </div>
+    <div class="panel">
+      <div class="facts" id="facts"></div>
+      <div class="asks" id="asks"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="ph-h">
+    <div class="sec-h"><h2 id="ph-h">Phase progress</h2><p id="ph-sub"></p></div>
+    <div class="steps" id="steps"></div>
+  </section>
+
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div id="panel"></div>
+
+  <div class="foot" id="foot"></div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+// ---------- LIVE SOURCES ----------
+// Each entry is a Google Apps Script web app URL that returns the tracker tabs as JSON
+// (see limbic-tracker-api.gs). Leave the list empty to use only sample data and uploaded workbooks.
+const LIVE_SOURCES = [{ name: "Cedarbridge Health Network", url: "https://script.google.com/macros/s/AKfycbwBRg8N7yzKGrRltXaizQ_JBUIqc6G6O8pbW4sHovnUePspSE2_Id4BhH6WE8kcx3KY5g/exec" }];
+const REFRESH_SECONDS = 20;
+
+const SAMPLES = [{"schema_version": "1.0", "project": {"partner": "Cedarbridge Health Network", "program": "Adult outpatient behavioral health intake and referral", "setting": "Four regional teams (North, Central, South, East), state of Meridian", "integration": "Epic FHIR Patient feed", "as_of": "2026-09-25", "lead": "Tim Vos", "kickoff": "2026-08-17", "target_launch": "2026-10-26", "forecast_launch": "2026-11-02", "checkpoint_date": "2026-10-02", "checkpoint_note": "Integration sign-off checkpoint. If integration is not signed off, the launch forecast moves to Nov 9 that day.", "summary_customer": "Requirements and chatbot configuration finished on time. Integration is in progress: connectivity and field mapping are done, and we are finalizing how members are routed to regional teams when county information is missing. Integration is running one week behind plan, which moves the working launch forecast from Oct 26 to Nov 2. We will confirm that date on Oct 2.", "summary_internal": "Integration missed its Sep 25 finish. Cause: 4 cross-region ZIPs plus missing county in the feed, compounded by Alex Rivera being split across two releases. Nov 2 has zero buffer; the critical path runs Sep 29 to Oct 2 on consecutive days and depends on Erica Chen, who is also covering Cedarbridge's Epic upgrade. Push for a working session on Sep 28.", "partner_asks": "Confirm which address field holds county (Sep 29); name the owner of the routing exception queue and its response time (Oct 1); provide test access for exception reviewers (overdue); approve access for the full-feed quality profile.", "fictional_note": "Fictional partner, people, and dates created for a Limbic interview exercise. Routing findings are recomputed from the supplied Exercise 1 sample and are not a population rate."}, "phases": [{"order": 1, "phase": "Requirements", "status": "Complete", "pct_complete": 100, "target_start": "2026-08-17", "target_end": "2026-08-28", "actual_start": "2026-08-17", "actual_end": "2026-08-28", "forecast_start": "", "forecast_end": "", "note_customer": "Pilot scope and clinical workflow signed off.", "note_internal": ""}, {"order": 2, "phase": "Chatbot Configuration", "status": "Complete", "pct_complete": 100, "target_start": "2026-08-31", "target_end": "2026-09-10", "actual_start": "2026-08-31", "actual_end": "2026-09-10", "forecast_start": "", "forecast_end": "", "note_customer": "Pilot conversation and clinical escalation content approved.", "note_internal": ""}, {"order": 3, "phase": "Integration Configuration", "status": "In progress", "pct_complete": 70, "target_start": "2026-09-11", "target_end": "2026-09-25", "actual_start": "2026-09-11", "actual_end": "", "forecast_start": "2026-09-11", "forecast_end": "2026-10-02", "note_customer": "Connectivity and field mapping done. Regional routing rule and exception path in progress.", "note_internal": "Blocked on partner county answer (O-07) and queue owner (O-09). Engineering capacity reduced (R-03)."}, {"order": 4, "phase": "Testing", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-09-28", "target_end": "2026-10-09", "actual_start": "", "actual_end": "", "forecast_start": "2026-10-05", "forecast_end": "2026-10-16", "note_customer": "End-to-end and edge-case testing. Ends with the Oct 16 readiness review.", "note_internal": "Test pack must include escalation for members in the unassigned queue."}, {"order": 5, "phase": "Training", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-12", "target_end": "2026-10-16", "actual_start": "", "actual_end": "", "forecast_start": "2026-10-19", "forecast_end": "2026-10-23", "note_customer": "Four regional teams plus exception reviewers.", "note_internal": ""}, {"order": 6, "phase": "Deployment", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-20", "target_end": "2026-10-22", "actual_start": "", "actual_end": "", "forecast_start": "2026-10-27", "forecast_end": "2026-10-29", "note_customer": "Release rehearsal and production cutover.", "note_internal": ""}, {"order": 7, "phase": "Launch", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-26", "target_end": "2026-10-26", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-02", "forecast_end": "2026-11-02", "note_customer": "Subject to the Oct 16 readiness review.", "note_internal": "Moves to Nov 9 if integration is not signed off Oct 2 (D-05)."}, {"order": 8, "phase": "Hypercare", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-26", "target_end": "2026-11-06", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-02", "forecast_end": "2026-11-13", "note_customer": "Daily review of routing exceptions and referral handoffs.", "note_internal": ""}], "people": [{"name": "Tim Vos", "role": "Implementation lead", "org": "Limbic"}, {"name": "Sofia Patel", "role": "Clinical lead", "org": "Limbic"}, {"name": "Alex Rivera", "role": "Integration engineer", "org": "Limbic"}, {"name": "Jonah Park", "role": "Data engineer", "org": "Limbic"}, {"name": "Rosa Kim", "role": "QA lead", "org": "Limbic"}, {"name": "Morgan Lee", "role": "Engineering lead", "org": "Limbic"}, {"name": "Dr. Maya Shah", "role": "Clinical sponsor", "org": "Partner"}, {"name": "Erica Chen", "role": "Data lead", "org": "Partner"}, {"name": "Nina Brooks", "role": "Operations lead", "org": "Partner"}, {"name": "Daniel Ortiz", "role": "Epic analyst", "org": "Partner"}], "items": [{"id": "O-01", "title": "Sign pilot scope and acceptance criteria", "phase": "Requirements", "owner": "Tim Vos", "due": "2026-08-28", "status": "Done", "completed_on": "2026-08-28", "depends_on": "", "audience": "Customer"}, {"id": "O-02", "title": "Approve clinical conversation and escalation content", "phase": "Chatbot Configuration", "owner": "Dr. Maya Shah", "due": "2026-09-10", "status": "Done", "completed_on": "2026-09-10", "depends_on": "O-01", "audience": "Customer"}, {"id": "O-03", "title": "Establish FHIR Patient feed connectivity in the test environment", "phase": "Integration Configuration", "owner": "Alex Rivera", "due": "2026-09-16", "status": "Done", "completed_on": "2026-09-16", "depends_on": "Partner test credentials", "audience": "Customer"}, {"id": "O-04", "title": "Sign off core field mapping (identifiers, name, contact, address)", "phase": "Integration Configuration", "owner": "Erica Chen", "due": "2026-09-19", "status": "Done", "completed_on": "2026-09-19", "depends_on": "O-03", "audience": "Customer"}, {"id": "O-05", "title": "Validate the ZIP, county, and region reference against sample records and share findings", "phase": "Integration Configuration", "owner": "Jonah Park", "due": "2026-09-23", "status": "Done", "completed_on": "2026-09-23", "depends_on": "O-04", "audience": "Customer"}, {"id": "O-06", "title": "Provision test-environment access for the partner staff who will work the exception queue", "phase": "Testing", "owner": "Daniel Ortiz", "due": "2026-09-23", "status": "Open", "completed_on": "", "depends_on": "Needed before Testing", "audience": "Customer"}, {"id": "O-07", "title": "Confirm address.district on the active home address is the authoritative county field; confirm whether city can ever be used; document rules for multiple or expired addresses", "phase": "Integration Configuration", "owner": "Erica Chen", "due": "2026-09-29", "status": "Waiting on partner", "completed_on": "", "depends_on": "Blocks final routing rule", "audience": "Customer"}, {"id": "O-08", "title": "Profile the full eligible feed: county completeness, cross-region ZIP volume, unmatched keys, multiple current addresses (aggregate counts only)", "phase": "Integration Configuration", "owner": "Jonah Park", "due": "2026-09-30", "status": "Blocked", "completed_on": "", "depends_on": "O-07; partner-approved access", "audience": "Customer"}, {"id": "O-09", "title": "Name the owner of the unresolved-routing queue; agree response time, escalation, and what the member sees while pending", "phase": "Integration Configuration", "owner": "Nina Brooks", "due": "2026-10-01", "status": "In review", "completed_on": "", "depends_on": "Needed for integration sign-off", "audience": "Customer"}, {"id": "O-10", "title": "Finish the ZIP-and-county routing rule and exception handoff; show ambiguous records stay unassigned and crisis escalation still fires for them", "phase": "Integration Configuration", "owner": "Alex Rivera", "due": "2026-10-02", "status": "In progress", "completed_on": "", "depends_on": "O-07, O-09", "audience": "Customer"}, {"id": "O-11", "title": "Finalize end-to-end test pack: cross-region ZIPs, missing county, old addresses, bad keys, clinical escalation, escalation for unassigned members", "phase": "Testing", "owner": "Rosa Kim", "due": "2026-10-02", "status": "In progress", "completed_on": "", "depends_on": "Approved rules for final sign-off", "audience": "Customer"}, {"id": "O-12", "title": "Confirm a trainer and slot for each of the four regional teams and the exception reviewers", "phase": "Training", "owner": "Nina Brooks", "due": "2026-10-09", "status": "Open", "completed_on": "", "depends_on": "Needed before Training", "audience": "Customer"}, {"id": "O-13", "title": "Confirm backup peer reviewer for integration changes while Alex is split across two releases", "phase": "Integration Configuration", "owner": "Morgan Lee", "due": "2026-09-28", "status": "In progress", "completed_on": "", "depends_on": "Supports O-10", "audience": "Internal"}], "decisions": [{"id": "D-01", "date": "2026-08-28", "decision": "Limit the first launch to adult outpatient intake and the four named regional teams; route cases outside the pilot through Cedarbridge's existing pathway.", "decided_by": "Dr. Maya Shah, Tim Vos", "rationale": "Keep the first release's scope and acceptance criteria clear.", "phase": "Requirements", "audience": "Customer"}, {"id": "D-02", "date": "2026-09-10", "decision": "Approve the pilot conversation flow and escalation content for configuration.", "decided_by": "Dr. Maya Shah, Sofia Patel", "rationale": "Clinical wording must be approved before end-to-end tests and staff training.", "phase": "Chatbot Configuration", "audience": "Customer"}, {"id": "D-03", "date": "2026-09-24", "decision": "Route on a validated current-home-address ZIP and county match. Route on ZIP alone only when every county for that ZIP sits in one region. Hold everything else for partner review instead of guessing.", "decided_by": "Erica Chen, Nina Brooks, Tim Vos", "rationale": "The sample includes cross-region ZIPs and missing county values; a silent guess can send a referral to the wrong team.", "phase": "Integration Configuration", "audience": "Customer"}, {"id": "D-04", "date": "2026-09-24", "decision": "Crisis and risk escalation runs independently of regional routing. A member showing risk indicators is escalated through Cedarbridge's crisis pathway immediately, whether or not their region is resolved.", "decided_by": "Dr. Maya Shah, Sofia Patel", "rationale": "The unassigned queue must never delay a clinical escalation.", "phase": "Integration Configuration", "audience": "Customer"}, {"id": "D-05", "date": "2026-09-25", "decision": "Keep Oct 26 as the original baseline and show Nov 2 as a best-case working forecast. Checkpoint on Oct 2: if integration is not signed off, move the forecast to Nov 9 that day.", "decided_by": "Dr. Maya Shah, Tim Vos", "rationale": "Keep an honest account of the schedule and give Cedarbridge early notice rather than a late surprise.", "phase": "Integration Configuration", "audience": "Customer"}, {"id": "D-06", "date": "2026-09-25", "decision": "Assign a backup reviewer for integration changes and protect dedicated build time for the rest of integration.", "decided_by": "Morgan Lee, Tim Vos", "rationale": "Keep the shared-engineer constraint from becoming a second slip.", "phase": "Integration Configuration", "audience": "Internal"}], "risks": [{"id": "R-01", "title": "Missing county blocks some regional routing", "severity": "High", "status": "Open", "desc_internal": "5 of 20 sample records have no county; 4 of those sit in cross-region ZIPs and cannot be routed. Full-population rate unknown. If it is high, reviewer capacity rather than the rule becomes the constraint.", "desc_customer": "Some records lack the county needed to tell regional destinations apart. Affected referrals will stay unassigned for review while we measure full-feed volume and agree the exception process.", "mitigation": "Confirm county source Sep 29; profile full feed Sep 30; size reviewer capacity from the profile.", "next_check": "2026-09-30", "owner": "Erica Chen", "audience": "Customer"}, {"id": "R-02", "title": "Integration running one week late", "severity": "High", "status": "Open", "desc_internal": "Cause is the routing finding plus our reduced engineering capacity (R-03). Nov 2 has zero buffer; the critical path runs on consecutive days from Sep 29 to Oct 2.", "desc_customer": "Integration validation is taking longer than planned. The original target was Oct 26; the working forecast is Nov 2. We will confirm or revise that date on Oct 2, depending on the partner inputs due Sep 29 to Oct 1.", "mitigation": "Oct 2 checkpoint per D-05; move forecast to Nov 9 if integration is not signed off.", "next_check": "2026-10-02", "owner": "Tim Vos", "audience": "Customer"}, {"id": "R-03", "title": "Integration engineer shared with another release", "severity": "Medium", "status": "Open", "desc_internal": "Alex Rivera is shared with another release this sprint, cutting time for fixes and peer review.", "desc_customer": "", "mitigation": "Backup reviewer (O-13, D-06); protected build blocks; reassess Sep 28.", "next_check": "2026-09-28", "owner": "Morgan Lee", "audience": "Internal"}, {"id": "R-04", "title": "Training attendance not confirmed", "severity": "Low", "status": "Open", "desc_internal": "Attendance is not confirmed for every regional team or for the exception reviewers, who won't be named until O-09 closes.", "desc_customer": "Training attendance is not yet confirmed for every regional team and exception reviewer.", "mitigation": "Named trainers and dates by Oct 9; make-up session if needed.", "next_check": "2026-10-09", "owner": "Nina Brooks", "audience": "Customer"}, {"id": "R-05", "title": "Unassigned referrals without a clear owner", "severity": "High", "status": "Open", "desc_internal": "If the exception queue has no owner or time limit, members could wait with no one accountable. Clinically unacceptable for a behavioral health intake.", "desc_customer": "Members whose region can't be confirmed need a named owner and a response time limit so no referral waits without follow-up. Crisis escalation is not affected by this queue.", "mitigation": "D-04 in place; owner and time limit through O-09 by Oct 1; tested in O-11.", "next_check": "2026-10-01", "owner": "Nina Brooks", "audience": "Customer"}, {"id": "R-06", "title": "Partner data lead capacity", "severity": "Medium", "status": "Open", "desc_internal": "Erica Chen is also covering Cedarbridge's Epic upgrade this month, and her replies have run 3 to 4 days. O-07 by Sep 29 is at real risk.", "desc_customer": "", "mitigation": "Ask Dr. Shah to protect time for O-07; propose a 30-minute working session on Sep 28 instead of email.", "next_check": "2026-09-28", "owner": "Tim Vos", "audience": "Internal"}], "gates": [{"id": "G-01", "gate": "Routing and exception workflow approved", "evidence": "Signed D-03 rule with O-07 and O-09 closed", "owner": "Erica Chen", "due": "2026-10-02", "status": "Not met"}, {"id": "G-02", "gate": "Routing test cases pass", "evidence": "All cross-region, missing-county, old-address, and bad-key cases in O-11 give the expected result", "owner": "Rosa Kim", "due": "2026-10-16", "status": "Not met"}, {"id": "G-03", "gate": "Clinical escalation passes, including for unassigned members", "evidence": "Escalation cases pass with the member both routed and unassigned", "owner": "Sofia Patel", "due": "2026-10-16", "status": "Not met"}, {"id": "G-04", "gate": "Full-feed profile and reviewer capacity accepted", "evidence": "O-08 aggregate counts reviewed; reviewer capacity covers the expected queue", "owner": "Nina Brooks", "due": "2026-10-16", "status": "Not met"}, {"id": "G-05", "gate": "No open critical or high defects", "evidence": "Defect log", "owner": "Rosa Kim", "due": "2026-10-16", "status": "Not met"}, {"id": "G-06", "gate": "Regional teams and exception reviewers trained", "evidence": "Attendance for all four teams plus reviewers", "owner": "Nina Brooks", "due": "2026-10-23", "status": "Not met"}]}, {"schema_version": "1.0", "project": {"partner": "Harbor Point Counseling", "program": "Adult outpatient therapy intake, single site", "setting": "One clinic, one intake team, city of Port Alder in the state of Meridian", "integration": "Nightly CSV eligibility file over SFTP (no EHR API)", "as_of": "2026-09-25", "lead": "Tim Vos", "kickoff": "2026-09-08", "target_launch": "2026-11-16", "forecast_launch": "2026-11-16", "checkpoint_date": "2026-10-09", "checkpoint_note": "Integration sign-off. Confirms whether the nightly file format is final.", "summary_customer": "Requirements are signed off and the chatbot conversation is being configured against your approved intake script. Integration starts Oct 1 once the sample eligibility file is received. Launch remains on target for Nov 16.", "summary_internal": "Small, simple implementation. Only real exposure is the CSV file: Harbor Point has no IT staff and the office manager builds the export by hand, so expect format drift. Get a sample early and lock a file spec in writing. Otherwise on track with slack in Testing.", "partner_asks": "Send a sample eligibility file by Sep 30; confirm who at Harbor Point will send the nightly file and who covers when they are out; confirm two intake staff for training the week of Nov 2.", "fictional_note": "Fictional partner, people, and dates created for a Limbic interview exercise, included to show the same dashboard rendering a second implementation."}, "phases": [{"order": 1, "phase": "Requirements", "status": "Complete", "pct_complete": 100, "target_start": "2026-09-08", "target_end": "2026-09-18", "actual_start": "2026-09-08", "actual_end": "2026-09-17", "forecast_start": "", "forecast_end": "", "note_customer": "Intake script and scope signed off a day early.", "note_internal": ""}, {"order": 2, "phase": "Chatbot Configuration", "status": "In progress", "pct_complete": 40, "target_start": "2026-09-21", "target_end": "2026-09-30", "actual_start": "2026-09-21", "actual_end": "", "forecast_start": "2026-09-21", "forecast_end": "2026-09-30", "note_customer": "Conversation flow being built from the approved script.", "note_internal": "Clinic wants to add a sliding-scale fee question. Keep it out of the pilot (D-02)."}, {"order": 3, "phase": "Integration Configuration", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-01", "target_end": "2026-10-09", "actual_start": "", "actual_end": "", "forecast_start": "2026-10-01", "forecast_end": "2026-10-09", "note_customer": "Nightly eligibility file over SFTP.", "note_internal": "Depends on getting a sample file. Office manager builds it by hand."}, {"order": 4, "phase": "Testing", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-10-12", "target_end": "2026-10-23", "actual_start": "", "actual_end": "", "forecast_start": "2026-10-12", "forecast_end": "2026-10-23", "note_customer": "End-to-end intake and escalation tests.", "note_internal": "Two weeks is generous for one site. This is the buffer."}, {"order": 5, "phase": "Training", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-11-02", "target_end": "2026-11-04", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-02", "forecast_end": "2026-11-04", "note_customer": "Two intake staff, one session plus a follow-up.", "note_internal": ""}, {"order": 6, "phase": "Deployment", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-11-09", "target_end": "2026-11-11", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-09", "forecast_end": "2026-11-11", "note_customer": "Production cutover.", "note_internal": ""}, {"order": 7, "phase": "Launch", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-11-16", "target_end": "2026-11-16", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-16", "forecast_end": "2026-11-16", "note_customer": "Go-live.", "note_internal": ""}, {"order": 8, "phase": "Hypercare", "status": "Upcoming", "pct_complete": 0, "target_start": "2026-11-16", "target_end": "2026-11-27", "actual_start": "", "actual_end": "", "forecast_start": "2026-11-16", "forecast_end": "2026-11-27", "note_customer": "Daily check-in for the first two weeks.", "note_internal": ""}], "people": [{"name": "Tim Vos", "role": "Implementation lead", "org": "Limbic"}, {"name": "Sofia Patel", "role": "Clinical lead", "org": "Limbic"}, {"name": "Priya Nair", "role": "Integration engineer", "org": "Limbic"}, {"name": "Rosa Kim", "role": "QA lead", "org": "Limbic"}, {"name": "Dr. Ben Okafor", "role": "Clinical director", "org": "Partner"}, {"name": "Laura Diaz", "role": "Office manager", "org": "Partner"}], "items": [{"id": "O-01", "title": "Sign pilot scope and intake script", "phase": "Requirements", "owner": "Dr. Ben Okafor", "due": "2026-09-18", "status": "Done", "completed_on": "2026-09-17", "depends_on": "", "audience": "Customer"}, {"id": "O-02", "title": "Confirm crisis escalation pathway and after-hours number", "phase": "Requirements", "owner": "Dr. Ben Okafor", "due": "2026-09-18", "status": "Done", "completed_on": "2026-09-17", "depends_on": "", "audience": "Customer"}, {"id": "O-03", "title": "Build conversation flow from the approved script", "phase": "Chatbot Configuration", "owner": "Sofia Patel", "due": "2026-09-30", "status": "In progress", "completed_on": "", "depends_on": "O-01", "audience": "Customer"}, {"id": "O-04", "title": "Send a sample nightly eligibility file (10 to 20 rows, real columns, test data)", "phase": "Integration Configuration", "owner": "Laura Diaz", "due": "2026-09-30", "status": "Open", "completed_on": "", "depends_on": "Needed before Integration starts", "audience": "Customer"}, {"id": "O-05", "title": "Agree written file spec: columns, date format, delimiter, delivery time, and what happens if the file is late", "phase": "Integration Configuration", "owner": "Priya Nair", "due": "2026-10-06", "status": "Open", "completed_on": "", "depends_on": "O-04", "audience": "Customer"}, {"id": "O-06", "title": "Confirm who sends the nightly file and who covers when they are out", "phase": "Integration Configuration", "owner": "Laura Diaz", "due": "2026-10-06", "status": "Open", "completed_on": "", "depends_on": "", "audience": "Customer"}, {"id": "O-07", "title": "Confirm two intake staff and dates for training the week of Nov 2", "phase": "Training", "owner": "Dr. Ben Okafor", "due": "2026-10-23", "status": "Open", "completed_on": "", "depends_on": "", "audience": "Customer"}, {"id": "O-08", "title": "Draft a plain-language file guide for the office manager, with an example row", "phase": "Integration Configuration", "owner": "Priya Nair", "due": "2026-10-02", "status": "Open", "completed_on": "", "depends_on": "O-04", "audience": "Internal"}], "decisions": [{"id": "D-01", "date": "2026-09-17", "decision": "Pilot covers new adult therapy intake only; existing clients and minors continue through the front desk.", "decided_by": "Dr. Ben Okafor, Tim Vos", "rationale": "Keep the first release small for a two-person intake team.", "phase": "Requirements", "audience": "Customer"}, {"id": "D-02", "date": "2026-09-24", "decision": "Do not add a sliding-scale fee question to the pilot conversation; revisit after hypercare.", "decided_by": "Dr. Ben Okafor, Sofia Patel", "rationale": "Fee questions need clinic policy wording that is not final, and adding them now would delay configuration.", "phase": "Chatbot Configuration", "audience": "Customer"}, {"id": "D-03", "date": "2026-09-24", "decision": "If the nightly file is missing or malformed, the chatbot keeps running on the previous day's file and Limbic alerts the clinic by 9 a.m.", "decided_by": "Tim Vos, Priya Nair", "rationale": "A hand-built file will fail sometimes; the service should degrade safely rather than stop.", "phase": "Integration Configuration", "audience": "Customer"}], "risks": [{"id": "R-01", "title": "Hand-built eligibility file may change shape", "severity": "Medium", "status": "Open", "desc_internal": "The office manager builds the CSV by hand from the practice system. No IT staff to lock a format. Expect column renames and date-format drift after go-live.", "desc_customer": "The nightly eligibility file is produced manually, so we will agree a written file format and check every file automatically before it is used.", "mitigation": "Written spec (O-05), file guide (O-08), automated validation with a same-morning alert (D-03).", "next_check": "2026-10-06", "owner": "Priya Nair", "audience": "Customer"}, {"id": "R-02", "title": "Sample file arriving late would compress Integration", "severity": "Low", "status": "Open", "desc_internal": "If O-04 slips past Oct 1, Integration starts late, but Testing has about a week of slack, so launch is not at risk unless the file is more than a week late.", "desc_customer": "Integration can start as soon as we receive the sample file. Launch stays on target if we have it by early October.", "mitigation": "Reminder Sep 28; offer a 20-minute screen share to build the export together.", "next_check": "2026-09-30", "owner": "Laura Diaz", "audience": "Customer"}, {"id": "R-03", "title": "Scope creep from clinic wish list", "severity": "Low", "status": "Open", "desc_internal": "Dr. Okafor keeps raising small additions (fee question, insurance card upload). Each one is reasonable alone. Log them for phase two and hold the line on the pilot.", "desc_customer": "", "mitigation": "Phase-two list maintained in the decision log; D-02 as the precedent.", "next_check": "2026-10-09", "owner": "Tim Vos", "audience": "Internal"}], "gates": [{"id": "G-01", "gate": "Scope and intake script signed off", "evidence": "D-01 signed", "owner": "Dr. Ben Okafor", "due": "2026-09-18", "status": "Met"}, {"id": "G-02", "gate": "File spec agreed and validation working", "evidence": "O-05 closed; validation rejects a malformed test file", "owner": "Priya Nair", "due": "2026-10-09", "status": "Not met"}, {"id": "G-03", "gate": "End-to-end and edge-case tests pass", "evidence": "Test pack complete with no open high defects", "owner": "Rosa Kim", "due": "2026-10-23", "status": "Not met"}, {"id": "G-04", "gate": "Clinical escalation tests pass", "evidence": "Crisis pathway and after-hours number verified", "owner": "Sofia Patel", "due": "2026-10-23", "status": "Not met"}, {"id": "G-05", "gate": "Intake staff trained", "evidence": "Both staff attended and completed a practice intake", "owner": "Dr. Ben Okafor", "due": "2026-11-04", "status": "Not met"}]}];
+const SAMPLE = SAMPLES[0];
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DAY = 86400000;
+const toD = s => { if(!s) return null; const [y,m,d] = String(s).slice(0,10).split("-").map(Number); return (y&&m&&d) ? Date.UTC(y,m-1,d) : null; };
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt = s => { const t = typeof s==="number"? s : toD(s); if(t==null) return "-"; const d=new Date(t); return MON[d.getUTCMonth()]+" "+d.getUTCDate(); };
+const fmtY = s => { const t=toD(s); if(t==null) return ""; const d=new Date(t); return fmt(t)+", "+d.getUTCFullYear(); };
+const diff = (a,b) => (toD(a)!=null && toD(b)!=null) ? Math.round((toD(a)-toD(b))/DAY) : null;
+const sev = {Critical:0,High:1,Medium:2,Low:3};
+const sevTone = {Critical:"t-crit",High:"t-serious",Medium:"t-warn",Low:"t-neutral"};
+const statusTone = {"Done":"t-good","In progress":"t-accent","In review":"t-neutral","Open":"t-neutral","Waiting on partner":"t-warn","Blocked":"t-crit"};
+const plural = (n,w) => n+" "+w+(n===1?"":"s");
+
+let portfolio = SAMPLES.map((d,i)=>({ data:d, source: i===0 ? "Cedarbridge_Implementation_Data.xlsx" : "HarborPoint_Implementation_Data.xlsx", sample:true }));
+let state = { data: portfolio[0].data, source: portfolio[0].source, view: "customer", tab: "overview", itemFilter: "open", orgFilter: "all" };
+try{ const t = localStorage.getItem("impl-tab"); if(t) state.tab = t; }catch(e){}
+if (location.hash === "#internal") state.view = "internal";
+
+function partnerShort(){ return (state.data.project.partner||"Partner").split(" ")[0]; }
+function orgOf(name){ const p = state.data.people.find(p => p.name === name); return p ? p.org : ""; }
+function orgLabel(org){ return org === "Partner" ? partnerShort() : org; }
+function visible(row){ return state.view === "internal" || row.audience !== "Internal"; }
+function isOverdue(i){ const a = state.data.project.as_of; return i.status !== "Done" && i.due && toD(i.due) < toD(a); }
+
+function health(){
+  const p = state.data.project;
+  const slip = diff(p.forecast_launch, p.target_launch) || 0;
+  const open = state.data.risks.filter(r => r.status !== "Closed");
+  const crit = open.filter(r => r.severity === "Critical").length;
+  const high = open.filter(r => r.severity === "High").length;
+  let label="On track", tone="t-good";
+  if (slip > 14 || crit) { label="Off track"; tone="t-crit"; }
+  else if (slip > 0 || high) { label="At risk"; tone="t-warn"; }
+  const why = [];
+  if (slip > 0) why.push("launch forecast "+plural(slip,"day")+" after target");
+  if (crit) why.push(plural(crit,"critical risk")+" open");
+  if (high) why.push(plural(high,"high risk")+" open");
+  return {label, tone, slip, why};
+}
+
+// ---------- render ----------
+function render(){
+  const d = state.data, p = d.project, internal = state.view === "internal";
+  document.documentElement.dataset.view = state.view;
+  $("#v-customer").setAttribute("aria-pressed", !internal);
+  $("#v-internal").setAttribute("aria-pressed", internal);
+  $("#partner-sel").innerHTML = portfolio.map((e,i)=>`<option value="${i}" ${e.data===state.data?"selected":""}>${esc(e.data.project.partner||e.source)}${e.live?" (live)":""}</option>`).join("");
+  $("#b-partner").textContent = p.partner || "Untitled implementation";
+  $("#b-program").textContent = p.program || "Limbic implementation tracker";
+
+  $("#banner").innerHTML = internal
+    ? `<div class="banner internal"><span><b>Internal view.</b> Includes Limbic-only risks, items, and candid wording. Share the customer view with ${esc(partnerShort())}, not this one.</span></div>`
+    : (p.fictional_note ? `<div class="banner note"><span>${esc(p.fictional_note)}</span></div>` : "");
+
+  const h = health();
+  const active = d.phases.find(x => x.status === "In progress");
+  $("#status-row").innerHTML =
+    `<span class="pill big-status ${h.tone}">${h.label}</span>` +
+    (active ? `<span class="pill nodot t-accent">Now: ${esc(active.phase)}</span>` : "") +
+    `<span class="muted" style="font-size:12px">As of ${esc(fmtY(p.as_of))}</span>`;
+  $("#h-title").textContent = (p.partner||"Implementation") + (p.setting ? "" : "");
+  $("#summary").textContent = internal ? (p.summary_internal || p.summary_customer || "") : (p.summary_customer || "");
+  const sub = $("#sub-summary");
+  if (internal && p.summary_customer) { sub.hidden=false; sub.innerHTML = `<b style="color:var(--accent)">Customer sees:</b> ${esc(p.summary_customer)}`; }
+  else sub.hidden = true;
+
+  const openItems = d.items.filter(i => i.status !== "Done" && visible(i));
+  const overdue = openItems.filter(isOverdue);
+  const partnerOpen = openItems.filter(i => orgOf(i.owner) === "Partner");
+  const daysTo = diff(p.forecast_launch, p.as_of);
+  $("#facts").innerHTML = `
+    <div class="fact"><div class="eyebrow">Target launch</div><div class="v">${esc(fmt(p.target_launch))}</div><div class="d">Original baseline</div></div>
+    <div class="fact"><div class="eyebrow">Working forecast</div><div class="v">${esc(fmt(p.forecast_launch))} ${h.slip>0?`<small class="slip">+${h.slip}d</small>`:""}</div><div class="d">${daysTo!=null?daysTo+" days from as-of date":""}</div></div>
+    <div class="fact"><div class="eyebrow">Open items</div><div class="v">${openItems.length} ${overdue.length?`<small class="slip">${overdue.length} overdue</small>`:""}</div><div class="d">${partnerOpen.length} owned by ${esc(partnerShort())}</div></div>
+    <div class="fact"><div class="eyebrow">Next checkpoint</div><div class="v">${esc(fmt(p.checkpoint_date))}</div><div class="d">${esc(p.checkpoint_note||"")}</div></div>`;
+  $("#asks").innerHTML = p.partner_asks ? `<div class="eyebrow">What we need from ${esc(partnerShort())}</div><p>${esc(p.partner_asks)}</p>` : "";
+
+  // stepper
+  const done = d.phases.filter(x=>x.status==="Complete").length;
+  $("#ph-sub").textContent = `${done} of ${d.phases.length} complete`;
+  $("#steps").innerHTML = d.phases.map(ph => {
+    const pct = ph.status==="Complete"?100:(+ph.pct_complete||0);
+    const sl = diff(ph.actual_end||ph.forecast_end, ph.target_end);
+    const cls = ph.status==="Complete"?"complete":ph.status==="In progress"?"active":"";
+    const st = ph.status==="Complete" ? "Done "+fmt(ph.actual_end) : ph.status==="In progress" ? pct+"% · due "+fmt(ph.forecast_end||ph.target_end) : "Starts "+fmt(ph.forecast_start||ph.target_start);
+    return `<div class="step ${cls}"><div class="bar"><i style="width:${pct}%"></i></div><div class="nm">${esc(ph.phase)}</div><div class="st">${esc(st)}</div>${sl>0?`<div class="sl">+${sl}d vs target</div>`:""}</div>`;
+  }).join("");
+
+  // tabs
+  const vis = {
+    items: d.items.filter(visible), risks: d.risks.filter(visible), decisions: d.decisions.filter(visible)
+  };
+  const tabs = [
+    ["overview","Overview",null],["items","Open items",vis.items.filter(i=>i.status!=="Done").length],
+    ["risks","Risks",vis.risks.filter(r=>r.status!=="Closed").length],["decisions","Decisions",vis.decisions.length],
+    ["gates","Readiness",d.gates.length],["portfolio","All partners",portfolio.length],["playbook","How this works",null],["data","Data",null]
+  ];
+  if (!tabs.some(t=>t[0]===state.tab)) state.tab="overview";
+  $("#tabs").innerHTML = tabs.map(([k,l,c]) => `<button role="tab" type="button" id="tab-${k}" data-tab="${k}" aria-selected="${state.tab===k}">${l}${c!=null?` <span class="count">${c}</span>`:""}</button>`).join("");
+
+  const P = $("#panel");
+  if (state.tab==="overview") P.innerHTML = overviewHTML(vis);
+  if (state.tab==="items") P.innerHTML = itemsHTML(vis.items);
+  if (state.tab==="risks") P.innerHTML = risksHTML(vis.risks);
+  if (state.tab==="decisions") P.innerHTML = decisionsHTML(vis.decisions);
+  if (state.tab==="gates") P.innerHTML = gatesHTML();
+  if (state.tab==="playbook") P.innerHTML = playbookHTML();
+  if (state.tab==="data") P.innerHTML = dataHTML();
+  if (state.tab==="portfolio") P.innerHTML = portfolioHTML();
+  if (state.tab==="overview") drawTimeline();
+
+  renderLiveBadge();
+  $("#foot").innerHTML = `<span>Source: ${esc(state.source)}. Health, slip, and overdue flags are calculated from the data using the rules under How this works.</span><span>The view toggle is for demonstration. A deployed version would put the customer view behind partner login so internal content never reaches the partner.</span>`;
+}
+
+function ownerCell(name){
+  const o = orgOf(name);
+  return `<span class="owner">${esc(name||"Unassigned")}</span>${o?`<span class="org">${esc(orgLabel(o))}</span>`:""}`;
+}
+function audChip(row){ return row.audience==="Internal" ? ` <span class="pill nodot t-internal">Internal only</span>` : ""; }
+
+function overviewHTML(vis){
+  const d = state.data;
+  const att = vis.items.filter(i => i.status!=="Done" && (isOverdue(i) || i.status==="Blocked" || i.status==="Waiting on partner"))
+    .sort((a,b)=>toD(a.due)-toD(b.due));
+  const topRisks = vis.risks.filter(r=>r.status!=="Closed").sort((a,b)=>sev[a.severity]-sev[b.severity]).slice(0,4);
+  const internal = state.view==="internal";
+  return `
+  <section class="panel">
+    <div class="sec-h"><div><h2>Timeline</h2><p>Target dates are the original baseline and never move. Slip is measured against them.</p></div>
+      <div class="legend"><span><i class="sw target"></i>Target</span><span><i class="sw actual"></i>Actual</span><span><i class="sw fc"></i>Forecast</span><span><i class="sw asof"></i>As of</span></div></div>
+    <div class="tl-scroll" id="tl-scroll"><svg id="timeline" role="img" aria-label="Phase timeline, target versus actual and forecast dates"></svg></div>
+  </section>
+  <div class="grid2" style="margin-top:20px">
+    <section class="panel">
+      <div class="sec-h"><h2>Needs attention</h2><p>Overdue, blocked, or waiting on ${esc(partnerShort())}</p></div>
+      <div class="att">${att.length? att.map(i=>`
+        <div class="att-row"><span class="mono">${esc(i.id)}</span>
+          <div><div class="title">${esc(i.title)}</div><div class="m">${esc(i.owner)} · ${esc(orgLabel(orgOf(i.owner)))} · due ${esc(fmt(i.due))}</div></div>
+          ${statusPill(i)}</div>`).join("") : `<p class="muted">Nothing overdue or blocked.</p>`}</div>
+    </section>
+    <section class="panel">
+      <div class="sec-h"><h2>Top risks</h2><p>${internal?"Internal wording":"As shared with "+esc(partnerShort())}</p></div>
+      <div class="att">${topRisks.map(r=>`
+        <div class="att-row"><span class="mono">${esc(r.id)}</span>
+          <div><div class="title">${esc(r.title)}${audChip(r)}</div><div class="m">${esc(internal?r.desc_internal:r.desc_customer)}</div></div>
+          <span class="pill ${sevTone[r.severity]}">${esc(r.severity)}</span></div>`).join("")}</div>
+    </section>
+  </div>`;
+}
+
+function statusPill(i){
+  if (isOverdue(i)) return `<span class="pill t-crit">Overdue</span>`;
+  return `<span class="pill ${statusTone[i.status]||"t-neutral"}">${esc(i.status==="Waiting on partner"?"Waiting on "+partnerShort():i.status)}</span>`;
+}
+
+function itemsHTML(items){
+  let rows = items.slice();
+  if (state.itemFilter==="open") rows = rows.filter(i=>i.status!=="Done");
+  if (state.itemFilter==="done") rows = rows.filter(i=>i.status==="Done");
+  if (state.orgFilter!=="all") rows = rows.filter(i=>orgOf(i.owner)===state.orgFilter);
+  rows.sort((a,b)=> (a.status==="Done")-(b.status==="Done") || (isOverdue(b)-isOverdue(a)) || toD(a.due)-toD(b.due));
+  const seg = (name,val,label,cur) => `<button type="button" data-${name}="${val}" aria-pressed="${cur===val}">${label}</button>`;
+  return `
+  <div class="sec-h"><div><h2>Open items</h2><p>Completed items stay listed so the history of the implementation is visible.</p></div>
+    <div class="filters">
+      <span class="flabel">Show</span><div class="seg">${seg("if","open","Open",state.itemFilter)}${seg("if","done","Done",state.itemFilter)}${seg("if","all","All",state.itemFilter)}</div>
+      <span class="flabel">Owner</span><div class="seg">${seg("of","all","All",state.orgFilter)}${seg("of","Limbic","Limbic",state.orgFilter)}${seg("of","Partner",esc(partnerShort()),state.orgFilter)}</div>
+    </div></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Item</th><th>Owner</th><th>Due</th><th>Status</th><th>Phase</th></tr></thead>
+    <tbody>${rows.map(i=>`
+      <tr class="${i.status==="Done"?"done":""} ${isOverdue(i)?"overdue":""} ${i.audience==="Internal"?"internal-row":""}">
+        <td class="mono">${esc(i.id)}</td>
+        <td><div class="title">${esc(i.title)}${audChip(i)}</div>${i.depends_on?`<div class="dep">Depends on: ${esc(i.depends_on)}</div>`:""}</td>
+        <td>${ownerCell(i.owner)}</td>
+        <td class="mono" style="white-space:nowrap">${esc(fmt(i.due))}${i.completed_on?`<span class="org">done ${esc(fmt(i.completed_on))}</span>`:""}</td>
+        <td>${statusPill(i)}</td>
+        <td class="ink2" style="font-size:12px;min-width:120px">${esc(i.phase)}</td>
+      </tr>`).join("") || `<tr><td colspan="6" class="muted">No items match these filters.</td></tr>`}</tbody>
+  </table></div>`;
+}
+
+function risksHTML(risks){
+  const internal = state.view==="internal";
+  const rows = risks.slice().sort((a,b)=>(a.status==="Closed")-(b.status==="Closed")||sev[a.severity]-sev[b.severity]);
+  const hidden = state.data.risks.length - risks.length;
+  return `
+  <div class="sec-h"><div><h2>Risks</h2><p>${internal
+    ? "Each risk carries internal wording and the wording the customer sees. Internal-only risks never appear in the customer view; their schedule effect shows through the customer-visible risks and phase dates."
+    : "Risks that affect the implementation, with what we are doing about each one."}</p></div></div>
+  <div class="risks">${rows.map(r=>`
+    <article class="risk sev-${esc(r.severity)}">
+      <div class="risk-h"><span class="mono muted" style="font-size:12px">${esc(r.id)}</span><h3>${esc(r.title)}</h3>
+        <span class="pill ${sevTone[r.severity]}">${esc(r.severity)}</span>${r.status==="Closed"?`<span class="pill nodot t-neutral">Closed</span>`:""}${audChip(r)}</div>
+      <div class="risk-body">${internal ? `
+        <div class="wording int"><span class="lbl">Internal</span>${esc(r.desc_internal)}</div>
+        ${r.audience==="Internal" ? `<div class="wording muted" style="font-size:12px">Not shown to ${esc(partnerShort())}.</div>` :
+          r.desc_customer ? `<div class="wording cust sub"><span class="lbl">Customer sees</span>${esc(r.desc_customer)}</div>` :
+          `<div class="wording missing">Customer wording missing. Add it before sharing the customer view.</div>`}`
+        : `<div class="wording">${esc(r.desc_customer)}</div>`}
+        <div class="wording"><span class="lbl muted">Mitigation</span>${esc(r.mitigation)}</div>
+      </div>
+      <div class="risk-meta">
+        <div><div class="k">Owner</div>${ownerCell(r.owner)}</div>
+        <div><div class="k">Next check</div><span class="mono">${esc(fmt(r.next_check))}</span></div>
+      </div>
+    </article>`).join("")}</div>`;
+}
+
+function decisionsHTML(decs){
+  const rows = decs.slice().sort((a,b)=>toD(b.date)-toD(a.date));
+  return `<div class="sec-h"><div><h2>Decisions log</h2><p>What was decided, when, by whom, and why. Newest first.</p></div></div>
+  <div class="panel dec">${rows.map(x=>`
+    <div class="dec-row"><div class="dec-date">${esc(fmt(x.date))}<span>${esc(x.id)}</span></div>
+      <div><div class="what">${esc(x.decision)}${audChip(x)}</div><div class="why">Why: ${esc(x.rationale)}</div>
+      <div class="by"><span>Decided by ${esc(x.decided_by)}</span><span class="pill nodot t-neutral">${esc(x.phase)}</span></div></div></div>`).join("")}</div>`;
+}
+
+function gatesHTML(){
+  const g = state.data.gates; const met = g.filter(x=>x.status==="Met").length;
+  return `<div class="sec-h"><div><h2>Readiness gates</h2><p>Go-live proceeds only when every gate is met or formally waived. ${met} of ${g.length} met.</p></div></div>
+  <div class="panel gates">${g.map(x=>`
+    <div class="gate"><div class="box ${x.status==="Met"?"met":""}" aria-hidden="true">${x.status==="Met"?"✓":""}</div>
+      <div><div class="title">${esc(x.gate)}</div><div class="ev">${esc(x.evidence||"")}</div><div class="ev">${esc(x.owner||"")}${x.due?" · by "+esc(fmt(x.due)):""}</div></div>
+      <span class="pill ${x.status==="Met"?"t-good":x.status==="Waived"?"t-neutral":"t-warn"}">${esc(x.status)}</span></div>`).join("")}</div>`;
+}
+
+function playbookHTML(){
+  return `<div class="sec-h"><div><h2>How this works</h2><p>This dashboard is one instance of a repeatable process. Nothing in it is specific to ${esc(partnerShort())}; every number and row comes from a standard implementation workbook.</p></div></div>
+  <div class="play">
+    <div class="panel"><div class="n">Step 1</div><h3>Start from the template</h3><p>Every implementation gets a copy of the Limbic tracker workbook with the eight standard phases, the standard readiness gates, and fixed columns for items, decisions, risks, and people.</p></div>
+    <div class="panel"><div class="n">Step 2</div><h3>Set the baseline</h3><p>At kickoff, fill in the Project tab and the target dates for every phase. Target dates are then locked. When the plan changes, only forecast dates move.</p></div>
+    <div class="panel"><div class="n">Step 3</div><h3>Update weekly</h3><p>Before each partner call, update statuses, forecasts, items, and risks. Log decisions the day they are made, with who decided and why.</p></div>
+    <div class="panel"><div class="n">Step 4</div><h3>Review internally</h3><p>Walk the internal view with the Limbic team. Check that every customer-visible risk has customer wording and that internal-only rows are marked.</p></div>
+    <div class="panel"><div class="n">Step 5</div><h3>Share the customer view</h3><p>Share the customer view with the partner. It answers where we are, what changed, and what we need from them.</p></div>
+    <div class="panel"><div class="n">Step 6</div><h3>Run every partner the same way</h3><p>Load workbook adds another implementation to the partner list, and the same page renders it with no code change. Generate update writes the weekly customer or internal status from the data, so the audience rule applies to everything that leaves the tool, not just the screen.</p></div>
+  </div>
+  <div class="sec-h" style="margin-top:28px"><h2>Rules the dashboard applies</h2></div>
+  <div class="rules">
+    <div class="rule"><h3>Health is calculated</h3><p>On track: forecast launch matches target and no high or critical risk is open. At risk: launch slips up to 14 days, or a high risk is open. Off track: launch slips more than 14 days, or a critical risk is open.</p></div>
+    <div class="rule"><h3>Audience is a field</h3><p>Every item, decision, and risk is marked Customer or Internal. Customer rows appear in both views. Every customer-visible risk needs its own customer wording, and the Data tab flags any that are missing.</p></div>
+    <div class="rule"><h3>Slippage stays visible</h3><p>Slip is the actual or forecast end minus the original target end. An item is overdue when it is past due as of the snapshot date and not done.</p></div>
+  </div>
+  <div class="sec-h" style="margin-top:28px"><h2>Path to production</h2></div>
+  <p class="ink2" style="max-width:75ch">For a take-home, a workbook is the right source of truth because implementation managers already work in spreadsheets. In production, the same schema would read from the system Limbic uses to track projects, and the customer view would sit behind partner login with audience filtering enforced on the server.</p>`;
+}
+
+function dataChecks(){
+  const d = state.data, out = [];
+  const names = new Set(d.people.map(p=>p.name));
+  const noWord = d.risks.filter(r=>r.audience!=="Internal" && !r.desc_customer);
+  out.push([noWord.length===0, noWord.length? `Customer-visible risks missing customer wording: ${noWord.map(r=>r.id).join(", ")}` : "Every customer-visible risk has customer wording"]);
+  const noOwner = [...d.items,...d.risks].filter(x=>!x.owner || !names.has(x.owner));
+  out.push([noOwner.length===0, noOwner.length? `Owners missing or not on the People tab: ${noOwner.map(x=>x.id).join(", ")}` : "Every item and risk has an owner listed on the People tab"]);
+  const noDue = d.items.filter(i=>!i.due);
+  out.push([noDue.length===0, noDue.length? `Items without a due date: ${noDue.map(i=>i.id).join(", ")}` : "Every item has a due date"]);
+  out.push([d.phases.length===8, d.phases.length===8 ? "All eight standard phases present" : `Expected 8 phases, found ${d.phases.length}`]);
+  const noTarget = d.phases.filter(p=>!p.target_end);
+  out.push([noTarget.length===0, noTarget.length? `Phases without a target end date: ${noTarget.map(p=>p.phase).join(", ")}` : "Every phase has a baseline target date"]);
+  const noWhy = d.decisions.filter(x=>!x.rationale || !x.decided_by);
+  out.push([noWhy.length===0, noWhy.length? `Decisions missing who or why: ${noWhy.map(x=>x.id).join(", ")}` : "Every decision records who decided and why"]);
+  return out;
+}
+
+function dataHTML(){
+  const d = state.data;
+  const checks = dataChecks();
+  const schema = [
+    ["Project","Partner, program, as-of date, target and forecast launch, next checkpoint, customer and internal summaries, what we need from the partner"],
+    ["Phases","Phase, status, % complete, target start/end, actual start/end, forecast start/end, customer and internal notes. Slip is calculated"],
+    ["Items","ID, item, phase, owner, due, status, completed on, depends on, audience. Overdue is calculated"],
+    ["Decisions","ID, date, decision, decided by, why, phase, audience"],
+    ["Risks","ID, risk, severity, status, internal description, customer description, mitigation, next check, owner, audience"],
+    ["Gates","ID, readiness gate, evidence, owner, due, status"],
+    ["People","Name, role, org (Limbic or Partner). Drives the owner filters"],
+  ];
+  return `<div class="sec-h"><div><h2>Underlying data</h2><p>Everything on this page renders from the data below. Currently showing: ${esc(state.source)} (${d.items.length} items, ${d.decisions.length} decisions, ${d.risks.length} risks, ${d.gates.length} gates).</p></div>
+    <button type="button" class="btn" id="copy-json">Copy JSON</button></div>
+  <div class="grid2">
+    <section class="panel"><h2 style="margin-bottom:10px">Data checks</h2><div class="checks">${checks.map(([ok,t])=>`
+      <div class="check"><span class="pill nodot ${ok?"t-good":"t-crit"}">${ok?"Pass":"Fix"}</span><span>${esc(t)}</span></div>`).join("")}</div>
+      <p class="muted" style="font-size:12px;margin-top:12px">These run every time a workbook loads, so the same quality bar applies to every implementation.</p></section>
+    <section class="panel"><h2 style="margin-bottom:10px">Workbook tabs</h2>
+      <div class="tbl-wrap" style="border:0"><table class="schema"><tbody>${schema.map(([a,b])=>`<tr><td>${a}</td><td class="ink2">${b}</td></tr>`).join("")}</tbody></table></div></section>
+  </div>
+  <section class="panel" style="margin-top:20px"><h2 style="margin-bottom:10px">Raw data (JSON)</h2><pre class="json" id="json-pre">${esc(JSON.stringify(d,null,2))}</pre></section>`;
+}
+
+// ---------- timeline ----------
+function drawTimeline(){
+  const svg = $("#timeline"); if(!svg) return;
+  const d = state.data, ph = d.phases, asof = toD(d.project.as_of);
+  const box = $("#tl-scroll");
+  const W = Math.max(680, box.clientWidth);
+  const L = 176, R = 64, T = 34, RH = 40, H = T + ph.length*RH + 8;
+  const all = [];
+  ph.forEach(p => ["target_start","target_end","actual_start","actual_end","forecast_start","forecast_end"].forEach(k=>{ const t=toD(p[k]); if(t!=null) all.push(t); }));
+  if (asof!=null) all.push(asof);
+  if (!all.length){ svg.setAttribute("viewBox","0 0 "+W+" 40"); svg.innerHTML=`<text x="0" y="24" style="fill:var(--muted);font-size:13px">No dates yet. Add target dates on the Phases tab.</text>`; return; }
+  const x0 = Math.min(...all) - 2*DAY, x1 = Math.max(...all) + 3*DAY;
+  const X = t => L + (t - x0) / (x1 - x0) * (W - L - R);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", W); svg.setAttribute("height", H);
+  let s = `<defs><pattern id="hatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><rect width="5" height="5" style="fill:var(--accent-soft)"/><rect width="2" height="5" style="fill:var(--accent)"/></pattern></defs>`;
+  // weekly grid (Mondays)
+  let t = x0; while (new Date(t).getUTCDay() !== 1) t += DAY;
+  const ticks = []; for (; t <= x1; t += 7*DAY) ticks.push(t);
+  const step = (W - L - R) / Math.max(1,ticks.length) < 46 ? 2 : 1;
+  ticks.forEach((tk,i) => {
+    const x = X(tk);
+    s += `<line x1="${x}" x2="${x}" y1="${T-6}" y2="${H-8}" style="stroke:var(--line-2);stroke-width:1"/>`;
+    if (i % step === 0) s += `<text x="${x}" y="${T-12}" text-anchor="middle" style="fill:var(--muted);font-size:11px;font-family:var(--mono)">${fmt(tk)}</text>`;
+  });
+  ph.forEach((p,i) => {
+    const y = T + i*RH;
+    if (i%2===0) s += `<rect x="0" y="${y}" width="${W}" height="${RH}" style="fill:var(--line-2);opacity:.45"/>`;
+    const active = p.status==="In progress";
+    s += `<text x="4" y="${y+RH/2+4}" style="fill:var(--${active?"accent":"ink"});font-size:12.5px;font-weight:${active?600:500}">${esc(p.phase)}</text>`;
+    const ts=toD(p.target_start), te=toD(p.target_end);
+    const as=toD(p.actual_start), ae=toD(p.actual_end), fs=toD(p.forecast_start), fe=toD(p.forecast_end);
+    const milestone = ts!=null && te!=null && ts===te;
+    const ty = y+9, py = y+21;
+    if (milestone){
+      const dia = (cx,cy,st) => `<path d="M${cx} ${cy-6} L${cx+6} ${cy} L${cx} ${cy+6} L${cx-6} ${cy} Z" style="${st}"/>`;
+      s += dia(X(ts), ty+3, "fill:var(--line-2);stroke:var(--muted);stroke-width:1.2");
+      const at = ae ?? fe; if (at!=null) s += dia(X(at), py+5, ae!=null ? "fill:var(--accent)" : "fill:url(#hatch);stroke:var(--accent);stroke-width:1");
+    } else {
+      if (ts!=null && te!=null) s += `<rect x="${X(ts)}" y="${ty}" width="${Math.max(3,X(te+DAY)-X(ts))}" height="7" rx="2" style="fill:var(--line-2);stroke:var(--muted);stroke-width:1"/>`;
+      if (as!=null){
+        const aEnd = ae!=null ? ae+DAY : Math.max(as+DAY, asof ?? as);
+        s += `<rect x="${X(as)}" y="${py}" width="${Math.max(3,X(aEnd)-X(as))}" height="11" rx="2" style="fill:var(--accent)"/>`;
+        if (ae==null && fe!=null && fe+DAY > aEnd) s += `<rect x="${X(aEnd)}" y="${py}" width="${X(fe+DAY)-X(aEnd)}" height="11" rx="2" style="fill:url(#hatch)"/>`;
+      } else if (fs!=null && fe!=null){
+        s += `<rect x="${X(fs)}" y="${py}" width="${Math.max(3,X(fe+DAY)-X(fs))}" height="11" rx="2" style="fill:url(#hatch)"/>`;
+      }
+    }
+    const sl = diff(p.actual_end||p.forecast_end, p.target_end);
+    const lbl = sl==null ? "" : sl>0 ? "+"+sl+"d" : sl<0 ? sl+"d" : "On time";
+    s += `<text x="${W-6}" y="${y+RH/2+4}" text-anchor="end" style="fill:var(--${sl>0?"crit":"muted"});font-size:12px;font-weight:${sl>0?600:400};font-family:var(--mono)">${lbl}</text>`;
+    s += `<rect class="hit" data-i="${i}" x="0" y="${y}" width="${W}" height="${RH}" style="fill:transparent"/>`;
+  });
+  if (asof!=null){
+    const x = X(asof+DAY*0.7);
+    s += `<line x1="${x}" x2="${x}" y1="${T-4}" y2="${H-8}" style="stroke:var(--ink-2);stroke-width:1.5;stroke-dasharray:4 3"/>`;
+    s += `<text x="${x+4}" y="${H-12}" style="fill:var(--ink-2);font-size:11px;font-weight:600">As of ${fmt(asof)}</text>`;
+  }
+  svg.innerHTML = s;
+  const tip = $("#tip");
+  svg.querySelectorAll(".hit").forEach(r => {
+    r.addEventListener("mousemove", e => {
+      const p = ph[+r.dataset.i];
+      const sl = diff(p.actual_end||p.forecast_end, p.target_end);
+      const rng = (a,b) => a ? (a===b||!b ? fmt(a) : fmt(a)+" to "+fmt(b)) : "Not started";
+      tip.innerHTML = `<b>${esc(p.phase)}</b>
+        <div class="r"><span>Target</span><span>${rng(p.target_start,p.target_end)}</span></div>
+        <div class="r"><span>Actual</span><span>${p.actual_start? (p.actual_end? rng(p.actual_start,p.actual_end) : "Started "+fmt(p.actual_start)) : "Not started"}</span></div>
+        ${p.status!=="Complete"&&p.forecast_end?`<div class="r"><span>Forecast</span><span>${rng(p.forecast_start||p.actual_start,p.forecast_end)}</span></div>`:""}
+        <div class="r"><span>Slip</span><span>${sl==null?"n/a":sl>0?"+"+sl+" days":sl<0?sl+" days":"On time"}</span></div>
+        ${(state.view==="internal"&&p.note_internal)?`<div style="margin-top:4px;opacity:.85">${esc(p.note_internal)}</div>`:(p.note_customer?`<div style="margin-top:4px;opacity:.85">${esc(p.note_customer)}</div>`:"")}`;
+      tip.hidden = false;
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let lx = e.clientX + 14, ly = e.clientY + 14;
+      if (lx + tw > innerWidth - 8) lx = e.clientX - tw - 14;
+      if (ly + th > innerHeight - 8) ly = e.clientY - th - 14;
+      tip.style.left = lx+"px"; tip.style.top = ly+"px";
+    });
+    r.addEventListener("mouseleave", () => tip.hidden = true);
+  });
+}
+
+// ---------- portfolio ----------
+function healthOf(data){ const keep=state.data; state.data=data; const h=health(); state.data=keep; return h; }
+function portfolioHTML(){
+  return `<div class="sec-h"><div><h2>All partners</h2><p>Every implementation loaded in this session, each from its own workbook built on the same template. Pick one to open it.</p></div></div>
+  <div class="portfolio">${portfolio.map((e,i)=>{
+    const d=e.data, p=d.project, h=healthOf(d);
+    const active=d.phases.find(x=>x.status==="In progress");
+    const open=d.items.filter(x=>x.status!=="Done"&&(state.view==="internal"||x.audience!=="Internal"));
+    const od=open.filter(x=>x.due&&toD(x.due)<toD(p.as_of)).length;
+    return `<button type="button" class="pcard ${d===state.data?"current":""}" data-partner="${i}">
+      <div class="pn">${esc(p.partner||e.source)}${e.live?" (live)":""}</div>
+      <div class="pm">${esc(p.program||"")}</div>
+      <div class="pr"><span class="pill ${h.tone}">${h.label}</span>${active?`<span class="pill nodot t-accent">${esc(active.phase)}</span>`:""}</div>
+      <div class="steps">${d.phases.map(ph=>`<div class="step ${ph.status==="Complete"?"complete":ph.status==="In progress"?"active":""}"><div class="bar"><i style="width:${ph.status==="Complete"?100:(+ph.pct_complete||0)}%"></i></div></div>`).join("")}</div>
+      <div class="pm num">Launch ${esc(fmt(p.forecast_launch))}${h.slip>0?` <span class="slip">(+${h.slip}d)</span>`:" (on target)"} · ${open.length} open${od?`, ${od} overdue`:""} · as of ${esc(fmt(p.as_of))}</div>
+    </button>`;}).join("")}</div>`;
+}
+
+// ---------- status update generator ----------
+function generateUpdate(){
+  const d=state.data, p=d.project, internal=state.view==="internal", PN=partnerShort();
+  const h=health();
+  const vis=r=>internal||r.audience!=="Internal";
+  const lastWeek=toD(p.as_of)-7*DAY;
+  const L=[];
+  const line=s=>L.push(s);
+  const bullet=s=>L.push("- "+s);
+  const owner=n=>{const o=orgOf(n);return n+(o?" ("+orgLabel(o)+")":"");};
+
+  const active=d.phases.find(x=>x.status==="In progress");
+  const done=d.phases.filter(x=>x.status==="Complete").length;
+  line(internal ? `INTERNAL STATUS: ${p.partner} (Limbic only, do not forward)` : `${p.partner}: implementation update`);
+  line(`Week ending ${fmtY(p.as_of)}`);
+  line("");
+  line(`Overall: ${h.label}${h.why.length?" ("+h.why.join("; ")+")":""}`);
+  line(`Where we are: ${active?active.phase+" ("+(active.pct_complete||0)+"% complete)":"between phases"}, ${done} of ${d.phases.length} phases complete.`);
+  line(`Launch: target ${fmt(p.target_launch)}, working forecast ${fmt(p.forecast_launch)}${h.slip>0?" ("+h.slip+" days after target)":" (on target)"}.`);
+  if (p.checkpoint_date) line(`Next checkpoint: ${fmt(p.checkpoint_date)}${p.checkpoint_note?". "+p.checkpoint_note:""}`);
+  line("");
+  line("Summary");
+  line(internal ? (p.summary_internal||p.summary_customer||"") : (p.summary_customer||""));
+  line("");
+
+  const doneRecent=d.items.filter(i=>vis(i)&&i.status==="Done"&&i.completed_on&&toD(i.completed_on)>lastWeek);
+  const decRecent=d.decisions.filter(x=>vis(x)&&toD(x.date)>lastWeek);
+  line("What changed this week");
+  if(!doneRecent.length&&!decRecent.length) bullet("No items closed or decisions made in the last seven days.");
+  doneRecent.forEach(i=>bullet(`Completed ${i.id}: ${i.title} (${owner(i.owner)}, ${fmt(i.completed_on)})`));
+  decRecent.forEach(x=>bullet(`Decided ${x.id} on ${fmt(x.date)}: ${x.decision} Why: ${x.rationale}`));
+  d.phases.filter(ph=>ph.status!=="Complete"&&diff(ph.forecast_end,ph.target_end)>0).slice(0,1).forEach(ph=>bullet(`Schedule: ${ph.phase} is forecast to finish ${fmt(ph.forecast_end)}, ${diff(ph.forecast_end,ph.target_end)} days after its ${fmt(ph.target_end)} target. Downstream phases move with it; the original targets stay on the plan.`));
+  line("");
+
+  const open=d.items.filter(i=>vis(i)&&i.status!=="Done").sort((a,b)=>toD(a.due)-toD(b.due));
+  const partnerItems=open.filter(i=>orgOf(i.owner)==="Partner");
+  const limbicItems=open.filter(i=>orgOf(i.owner)!=="Partner");
+  line(internal?`What we need from ${PN}`:`What we need from you`);
+  if(p.partner_asks){ line(p.partner_asks); }
+  partnerItems.forEach(i=>bullet(`${i.id} ${i.title}. Owner ${i.owner}, due ${fmt(i.due)}${isOverdue(i)?" (overdue)":""}.`));
+  if(!partnerItems.length) bullet("Nothing outstanding on your side this week.");
+  line("");
+  line(internal?"Limbic items":"What Limbic is doing");
+  limbicItems.forEach(i=>bullet(`${i.id} ${i.title}. ${i.owner}, due ${fmt(i.due)}, ${i.status.toLowerCase()}${isOverdue(i)?" (overdue)":""}.`));
+  line("");
+
+  const risks=d.risks.filter(r=>vis(r)&&r.status!=="Closed").sort((a,b)=>sev[a.severity]-sev[b.severity]);
+  line("Risks");
+  risks.forEach(r=>{
+    const text=internal?r.desc_internal:r.desc_customer;
+    bullet(`${r.id} ${r.title} (${r.severity}${internal&&r.audience==="Internal"?", internal only":""}): ${text} Mitigation: ${r.mitigation}${r.next_check?" Next check "+fmt(r.next_check)+".":""}`);
+  });
+  if(internal){
+    const hiddenRisks=d.risks.filter(r=>r.audience==="Internal"&&r.status!=="Closed");
+    const hiddenItems=d.items.filter(i=>i.audience==="Internal"&&i.status!=="Done");
+    line("");
+    line("Audience check");
+    bullet(`${hiddenRisks.length} risk${hiddenRisks.length===1?"":"s"} and ${hiddenItems.length} item${hiddenItems.length===1?"":"s"} are internal only and will not appear in the customer update.`);
+    const missing=d.risks.filter(r=>r.audience!=="Internal"&&r.status!=="Closed"&&!r.desc_customer);
+    if(missing.length) bullet(`Customer wording missing for ${missing.map(r=>r.id).join(", ")}. Add it before sending the customer update.`);
+  }
+  line("");
+  const gates=d.gates||[]; const met=gates.filter(g=>g.status==="Met").length;
+  line(`Readiness: ${met} of ${gates.length} go-live gates met.`);
+  line("");
+  line(internal?`Prepared from the tracker workbook, internal view. Generate the customer update from the customer view before sending anything to ${PN}.`:`Prepared from the implementation tracker. Questions to ${p.lead||"your implementation lead"} at Limbic.`);
+  return L.join("\n");
+}
+function openUpdate(){
+  const internal=state.view==="internal";
+  const txt=generateUpdate();
+  const bg=document.createElement("div"); bg.className="modal-bg"; bg.id="modal";
+  bg.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+    <div class="modal-h"><div><h2 id="modal-t">${internal?"Internal team update":"Customer update for "+esc(partnerShort())}</h2>
+      <div class="muted" style="font-size:12px">Written from the ${internal?"internal":"customer"} view. ${internal?"Includes internal-only rows and candid wording.":"Internal-only rows and internal wording are excluded."}</div></div>
+      <div style="display:flex;gap:8px"><button type="button" class="btn" id="copy-update">Copy text</button><button type="button" class="btn ghost" id="close-update">Close</button></div></div>
+    <div class="modal-b"><textarea id="update-text" spellcheck="false" aria-label="Generated update">${esc(txt)}</textarea></div>
+    <div class="modal-f"><span>Edit before sending. The generator gives you the facts in the right order; the judgment is still yours.</span><span class="num">${txt.split("\n").length} lines</span></div></div>`;
+  document.body.appendChild(bg);
+  bg.addEventListener("click",e=>{ if(e.target===bg||e.target.id==="close-update") bg.remove(); });
+  $("#copy-update").addEventListener("click",()=>{
+    const ta=$("#update-text"), btn=$("#copy-update");
+    navigator.clipboard.writeText(ta.value).then(()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy text",1500);})
+      .catch(()=>{ta.focus();ta.select();btn.textContent="Selected, press Ctrl+C";});
+  });
+  document.addEventListener("keydown",function esc(e){ if(e.key==="Escape"){bg.remove();document.removeEventListener("keydown",esc);} });
+}
+
+// ---------- workbook import ----------
+const COLS = {
+  Phases:{"Order":"order","Phase":"phase","Status":"status","% complete":"pct_complete","Target start":"target_start","Target end":"target_end","Actual start":"actual_start","Actual end":"actual_end","Forecast start":"forecast_start","Forecast end":"forecast_end","Customer note":"note_customer","Internal note":"note_internal"},
+  Items:{"ID":"id","Item":"title","Phase":"phase","Owner":"owner","Due":"due","Status":"status","Completed on":"completed_on","Depends on":"depends_on","Audience":"audience"},
+  Decisions:{"ID":"id","Date":"date","Decision":"decision","Decided by":"decided_by","Why":"rationale","Phase":"phase","Audience":"audience"},
+  Risks:{"ID":"id","Risk":"title","Severity":"severity","Status":"status","Internal description":"desc_internal","Customer description":"desc_customer","Mitigation":"mitigation","Next check":"next_check","Owner":"owner","Audience":"audience"},
+  Gates:{"ID":"id","Readiness gate":"gate","Evidence":"evidence","Owner":"owner","Due":"due","Status":"status"},
+  People:{"Name":"name","Role":"role","Org":"org"}
+};
+const PROJ = {"Partner":"partner","Program":"program","Setting":"setting","Integration":"integration","As of":"as_of","Implementation lead":"lead","Kickoff":"kickoff","Target launch":"target_launch","Forecast launch":"forecast_launch","Next checkpoint":"checkpoint_date","Checkpoint note":"checkpoint_note","Customer summary":"summary_customer","Internal summary":"summary_internal","What we need from the partner":"partner_asks","Note":"fictional_note"};
+const DATEKEYS = new Set(["target_start","target_end","actual_start","actual_end","forecast_start","forecast_end","due","completed_on","date","next_check","as_of","kickoff","target_launch","forecast_launch","checkpoint_date"]);
+function cellVal(key, v){
+  if (v==null || v==="") return "";
+  if (DATEKEYS.has(key)){
+    if (typeof v==="number"){ const t = Math.round((v-25569)*DAY); const dt=new Date(t); return dt.toISOString().slice(0,10); }
+    if (v instanceof Date) return v.toISOString().slice(0,10);
+    const s=String(v).trim(); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0,10) : s;
+  }
+  if (key==="pct_complete"||key==="order") return Number(v)||0;
+  return String(v).trim();
+}
+function parseWorkbook(buf){
+  const wb = XLSX.read(buf, {type:"array", cellDates:false});
+  return tabsToData(name => wb.Sheets[name] ? XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:""}) : null, "workbook");
+}
+// Shared by workbook upload and live Google Sheets: getTab(name) returns the tab as an array of rows, or null.
+function tabsToData(getTab, what){
+  const need = ["Project",...Object.keys(COLS)];
+  const tabs = {}; need.forEach(n=>tabs[n]=getTab(n));
+  const miss = need.filter(n=>!tabs[n]);
+  if (miss.length) throw new Error("This "+what+" is missing the "+miss.join(", ")+" tab"+(miss.length>1?"s":"")+". Start from the Limbic tracker template.");
+  const out = {schema_version:"1.0", project:{}};
+  tabs.Project.slice(1).forEach(r=>{ const k=PROJ[String(r[0]||"").trim()]; if(k) out.project[k]=cellVal(k,r[1]); });
+  for (const [sheet,map] of Object.entries(COLS)){
+    const rows = tabs[sheet];
+    const head = (rows[0]||[]).map(h=>String(h).trim());
+    out[sheet.toLowerCase()] = rows.slice(1).map(r=>{ const o={}; head.forEach((h,j)=>{ const k=map[h]; if(k) o[k]=cellVal(k,r[j]); }); return o; })
+      .filter(o => sheet==="Phases" ? o.phase : sheet==="People" ? o.name : o.id && (o.title||o.decision||o.gate));
+  }
+  out.phases.sort((a,b)=>(a.order||0)-(b.order||0));
+  out.items.forEach(i=>{ if(!i.audience) i.audience="Customer"; });
+  out.decisions.forEach(i=>{ if(!i.audience) i.audience="Customer"; });
+  out.risks.forEach(i=>{ if(!i.audience) i.audience="Customer"; if(!i.status) i.status="Open"; });
+  return out;
+}
+function toast(msg, ok){ const t=$("#toast"); t.hidden=false; t.className="toast "+(ok?"ok":"err"); t.textContent=msg; }
+
+// ---------- live Google Sheets ----------
+const live = { status: {}, timer: null };
+async function fetchLive(src, silent){
+  const key = src.url;
+  live.status[key] = {state:"loading", at: live.status[key]?.at};
+  renderLiveBadge();
+  try{
+    const res = await fetch(src.url, {cache:"no-store"});
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    const data = tabsToData(name => j.tabs && j.tabs[name] ? j.tabs[name] : null, "Google Sheet");
+    const label = (src.name || j.spreadsheet || "Google Sheet") + " (live)";
+    let idx = portfolio.findIndex(e=>e.liveKey===key);
+    // First live load: take the place of the bundled sample for the same partner, so it is not listed twice
+    if (idx<0){ const si = portfolio.findIndex(e=>e.sample && e.data.project.partner===data.project.partner); if (si>=0){ const wasSel = portfolio[si].data===state.data; portfolio[si] = {data, source:label, sample:false, live:true, liveKey:key}; if (wasSel){ state.data=data; state.source=label; } idx = si; } }
+    const entry = {data, source: label, sample:false, live:true, liveKey:key};
+    const wasCurrent = idx>=0 && portfolio[idx].data===state.data;
+    if (idx>=0) portfolio[idx]=entry; else portfolio.push(entry);
+    if (wasCurrent || (idx<0 && !silent)) { state.data=data; state.source=label; }
+    live.status[key] = {state:"ok", at:new Date()};
+    render();
+  }catch(err){
+    live.status[key] = {state:"error", at: live.status[key]?.at, msg: err.message};
+    if (!silent) toast("Couldn't reach the Google Sheet: "+err.message+". Showing the last data received.", false);
+    renderLiveBadge();
+  }
+}
+function renderLiveBadge(){
+  const el = $("#live-badge"); if(!el) return;
+  const cur = portfolio.find(e=>e.data===state.data);
+  if (!cur || !cur.live){ el.hidden = true; return; }
+  const s = live.status[cur.liveKey] || {};
+  const t = s.at ? s.at.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) : "";
+  el.hidden = false;
+  el.className = "live " + (s.state||"");
+  el.innerHTML = `<span class="dot"></span>${s.state==="loading" ? "Refreshing" : s.state==="error" ? "Sheet unreachable, last data "+t : "Live from Google Sheets, updated "+t}<button type="button" id="refresh-btn" title="Fetch the sheet now">Refresh</button>`;
+}
+function startLive(){
+  if (!LIVE_SOURCES.length) return;
+  if (LIVE_SOURCES.some(s=>!s.url || s.url.indexOf("PASTE_")===0)){ toast("Live source not configured yet. Open index.html and replace PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE with your web app URL (see setup guide, step 2).", false); return; }
+  LIVE_SOURCES.forEach((src,i)=>fetchLive(src, i>0));
+  live.timer = setInterval(()=>LIVE_SOURCES.forEach(src=>fetchLive(src,true)), REFRESH_SECONDS*1000);
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) LIVE_SOURCES.forEach(src=>fetchLive(src,true)); });
+}
+
+$("#file-in").addEventListener("change", async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    let data;
+    if (/\.json$/i.test(f.name)) data = JSON.parse(await f.text());
+    else { if (typeof XLSX==="undefined") throw new Error("The spreadsheet reader didn't load. Check your connection and try again."); data = parseWorkbook(new Uint8Array(await f.arrayBuffer())); }
+    if (!data.project || !Array.isArray(data.phases)) throw new Error("That file doesn't follow the tracker format.");
+    const existing = portfolio.findIndex(e=>e.source===f.name);
+    const entry = {data, source:f.name, sample:false};
+    if (existing>=0) portfolio[existing]=entry; else portfolio.push(entry);
+    state.data = data; state.source = f.name;
+    const fails = dataChecks().filter(c=>!c[0]).length;
+    toast(`Loaded ${f.name}: ${data.items.length} items, ${data.risks.length} risks, ${data.decisions.length} decisions.`+(fails?` ${fails} data check${fails>1?"s":""} need attention on the Data tab.`:""), true);
+    render();
+  }catch(err){ toast(err.message, false); }
+  e.target.value = "";
+});
+$("#partner-sel").addEventListener("change", e => { const en=portfolio[+e.target.value]; if(en){ state.data=en.data; state.source=en.source; $("#toast").hidden=true; render(); } });
+$("#update-btn").addEventListener("click", openUpdate);
+
+document.addEventListener("click", e => {
+  const v = e.target.closest("[data-v]"); if (v){ state.view = v.dataset.v; try{history.replaceState(null,"","#"+state.view);}catch(_){} render(); return; }
+  const tb = e.target.closest("[data-tab]"); if (tb){ state.tab = tb.dataset.tab; try{localStorage.setItem("impl-tab",state.tab);}catch(_){} render(); return; }
+  const f1 = e.target.closest("[data-if]"); if (f1){ state.itemFilter = f1.dataset.if; render(); return; }
+  const f2 = e.target.closest("[data-of]"); if (f2){ state.orgFilter = f2.dataset.of; render(); return; }
+  const pc = e.target.closest("[data-partner]"); if (pc){ const en=portfolio[+pc.dataset.partner]; state.data=en.data; state.source=en.source; state.tab="overview"; render(); window.scrollTo({top:0}); return; }
+  if (e.target.id==="refresh-btn"){ const cur=portfolio.find(x=>x.data===state.data); const src=LIVE_SOURCES.find(s=>s.url===cur?.liveKey); if(src) fetchLive(src,false); return; }
+  if (e.target.id==="copy-json"){
+    const txt = JSON.stringify(state.data,null,2), btn=e.target;
+    navigator.clipboard.writeText(txt).then(()=>{ btn.textContent="Copied"; setTimeout(()=>btn.textContent="Copy JSON",1500); })
+      .catch(()=>{ const r=document.createRange(); r.selectNodeContents($("#json-pre")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent="Selected, press Ctrl+C"; });
+  }
+});
+startLive();
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(drawTimeline, 120); });
+render();
+</script>
+
+</body>
+</html>
